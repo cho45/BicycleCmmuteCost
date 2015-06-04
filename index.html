@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title></title>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+		<script src="bower_components/webcomponentsjs/webcomponents-lite.min.js"></script>
+
+		<link rel="import" href="bower_components/polymer/polymer.html"/>
+		<link rel="import" href="bower_components/iron-ajax/iron-ajax.html"/>
+		<link rel="import" href="bower_components/paper-input/paper-input.html"/>
+		<link rel="import" href="bower_components/paper-styles/paper-styles.html"/>
+		<link rel="import" href="bower_components/paper-material/paper-material.html"/>
+		<link rel="import" href="bower_components/paper-spinner/paper-spinner.html"/>
+
+		<style>
+			body {
+				font-family: 'Roboto', 'Noto', sans-serif;
+				font-size: 14px;
+				margin: 0;
+				padding: 24px;
+				background-color: #fafafa;
+			}
+
+			.card {
+				padding: 16px;
+				width: 400px;
+				margin: 5px;
+			}
+
+			.result {
+				width: 100%;
+				margin: 5px 0;
+				text-align: center;
+			}
+
+			.result div:first-child {
+				font-size: 200%
+			}
+
+			.result div[secondary] {
+				color: #757575;
+				font-size: 14px;
+				font-weight: 400;
+				line-height: 20px;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				-webkit-font-smoothing: antialiased;
+			}
+		</style>
+	</head>
+	<body>
+		<my-app/>
+
+		<dom-module id="my-app">
+			<template>
+				<iron-ajax auto url="tokyo.json" handle-as="json" on-response="statsLoaded"></iron-ajax>
+
+				<div class="horizontal center-justified layout">
+					<paper-material elevation="1" class="card">
+						<h4>Input</h4>
+						<div class="layout horizontal">
+							<paper-input label="定期代" type="number" value="{{input.passCost::input}}" class="flex"></paper-input>
+							<paper-input label="期間(箇月)" type="number" value="{{input.passSpan::input}}" style="width: 30%"></paper-input>
+						</div>
+						<paper-input label="雨天時往復料金" type="number" value="{{input.roundTripCost::input}}"></paper-input>
+						<paper-input label="駐輪場料金(1回あたり)" type="number" value="{{input.parkingCost::input}}"></paper-input>
+						<div class="layout horizontal">
+							<paper-input label="開始日" type="text" value="{{input.startDate::input}}" style="width: 50%"></paper-input>
+							<paper-input label="終了日(期間から算出)" type="text" value="{{result.endDate}}" disabled style="width: 50%"></paper-input>
+						</div>
+						<center>
+							<paper-spinner alt="天気統計をロード中" active="{{loading}}"></paper-spinner>
+						</center>
+					</paper-material>
+					<paper-material elevation="1" class="card">
+						<h4>Result</h4>
+						<div class="layout horizontal">
+							<div class="layout vertical result">
+								<div style="color: #E91E63"><span>{{result.businessDayCount}}</span>日</div>
+								<div secondary>総通勤日数(祝日を含む)</div>
+							</div>
+							<div class="layout vertical result">
+								<div style="color: #2196F3">{{result.POP}}</div>
+								<div secondary>期間中平均降水確率</div>
+							</div>
+						</div>
+						<div class="layout horizontal">
+							<div class="layout vertical result">
+								<div style="color: #009688"><span>{{result.bicycleCommuteDayCount}}</span>日</div>
+								<div secondary>期待自転車通勤日数</div>
+							</div>
+							<div class="layout vertical result">
+								<div style="color: #009688"><span>{{result.bicycleCommuteDayCountByMonth}}</span>日/月</div>
+								<div secondary>月間</div>
+							</div>
+						</div>
+						<div class="layout horizontal">
+							<div class="layout vertical result">
+								<div style="color: #FF1744"><span>{{result.requiredDayCount}}</span>日</div>
+								<div secondary>損得分岐日数</div>
+							</div>
+							<div class="layout vertical result">
+								<div style="color: #FF1744"><span>{{result.requiredDayCountByMonth}}</span>日/月</div>
+								<div secondary>月間損得分岐日数</div>
+							</div>
+						</div>
+						<div class="layout vertical result">
+							<div style="color: #666">¥<span>{{result.totalCost}}</span></div>
+							<div secondary>期待自転車通勤時総コスト</div>
+						</div>
+						<div class="layout horizontal">
+							<div class="layout vertical result">
+								<div style="color: #666">¥<span>{{result.diffTotalCost}}</span></div>
+								<div secondary>定期代との差額</div>
+							</div>
+							<div class="layout vertical result">
+								<div style="color: #FF1744">¥<span>{{result.diffTotalCostByMonth}}</span>/月</div>
+								<div secondary>月間の差額</div>
+							</div>
+						</div>
+					</paper-material>
+				</div>
+			</template>
+
+			<script>
+			document.addEventListener('WebComponentsReady', function() {
+				Polymer({
+					is: 'my-app',
+					properties: {
+						input : {
+							type: Object,
+							notify: true,
+							value: {
+								passCost: 26250,
+								passSpan: 3,
+								roundTripCost: 500,
+								parkingCost: 100,
+								startDate: '2015-04-01'
+							}
+						},
+						result : {
+							type: Object,
+							value: {
+								totalCost: 0
+							}
+						},
+						loading: {
+							type: Boolean,
+							value: true
+						}
+					},
+
+					calculate: function () {
+						var DAY = 24 * 60 * 60 * 1000;
+
+						var dateString = this.input.startDate.split(/-/);
+
+						var stats = this.stats;
+						var passCost = this.input.passCost;
+						var passSpan  = this.input.passSpan;
+						var startDate = new Date(+dateString[0], +dateString[1]-1, +dateString[2]);
+						var roundTripCost = this.input.roundTripCost;
+						var parkingCost = this.input.parkingCost;;
+						console.log('require roundTrip count', passCost / roundTripCost / 6 / 2);
+
+						// a day of n months behind
+						var endDate   = new Date(startDate.getTime());
+						var span = passSpan;
+						while (span > 0) {
+							endDate = new Date(endDate.getTime() + DAY);
+							if (endDate.getDate() === startDate.getDate()) {
+								span--;
+							}
+						}
+						console.log(startDate);
+						console.log(endDate);
+
+						var probability = 0;
+						var businessDayCount = 0;
+						var current = startDate.getTime();
+						while (current <= endDate.getTime()) {
+							var date = new Date(current);
+							var isHoliday = date.getDay() === 0 || date.getDay() === 6;
+							if (!isHoliday) {
+								businessDayCount++;
+								var d = String(date.getMonth()+101).slice(1) + '-' + String(date.getDate()+100).slice(1);
+								probability += stats[d];
+							}
+							current += DAY;
+						}
+						probability = probability / businessDayCount;
+
+						var totalCost =
+							businessDayCount * roundTripCost * probability +
+							businessDayCount * parkingCost * (1 - probability);
+
+						this.set('result.POP', Math.round(probability * 100) + '%');
+						this.set('result.businessDayCount', Math.round(businessDayCount));
+						this.set('result.bicycleCommuteDayCount', Math.round(businessDayCount * (1-probability)));
+						this.set('result.bicycleCommuteDayCountByMonth', Math.round(businessDayCount * (1-probability) / passSpan));
+						this.set('result.totalCost', Math.round(totalCost));
+						this.set('result.endDate', 
+							String(endDate.getFullYear() + 10000).slice(1) + '-' + String(endDate.getMonth()+101).slice(1)  + '-' + String(endDate.getDate()+100).slice(1)
+						);
+						this.set('result.diffTotalCost', Math.round(passCost - totalCost));
+						this.set('result.diffTotalCostByMonth', Math.round((passCost - totalCost) / passSpan));
+
+						var balancedProbability = (passCost - businessDayCount * parkingCost) / (businessDayCount * roundTripCost - businessDayCount * parkingCost);
+						this.set('result.requiredDayCount', Math.ceil(businessDayCount * (1-balancedProbability)));
+						this.set('result.requiredDayCountByMonth', Math.ceil(businessDayCount * (1-balancedProbability) / passSpan));
+					},
+
+					statsLoaded : function (e, req) {
+						this.loading = false;
+						this.stats = req.response;
+						this.calculate();
+					},
+
+					attached: function () {
+						this.addEventListener('input-changed', function (e) {
+							this.calculate();
+						});
+					}
+				});
+			});
+			</script>
+		</dom-module>
+
+	</body>
+</html>
