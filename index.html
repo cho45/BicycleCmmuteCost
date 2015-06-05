@@ -153,8 +153,8 @@
 							type: Object,
 							notify: true,
 							value: {
-								passCost: 26250,
-								passSpan: 3,
+								passCost: 50000,
+								passSpan: 6,
 								roundTripCost: 500,
 								parkingCost: 100,
 								startDate: '2015-04-01'
@@ -238,7 +238,7 @@
 						this.calculate();
 					},
 
-					attached: function () {
+					ready: function () {
 						this.addEventListener('input-changed', function (e) {
 							this.calculate();
 						});
